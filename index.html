@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>曲線的局部特徵與切線斜率</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; line-height: 1.6; }
+    .container { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 1fr 420px; gap: 20px; }
+    @media (max-width: 960px) { .container { grid-template-columns: 1fr; } }
+    
+    header { grid-column: 1 / -1; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+    h1 { font-size: 1.6rem; color: #0f172a; margin-bottom: 2px; }
+    p.subtitle { color: var(--text-muted); font-size: 0.95rem; }
+
+    .card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 18px; }
+    
+    /* 自訂函數輸入列 */
+    .func-bar {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .func-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .func-label {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+    .func-input {
+      flex: 1;
+      min-width: 160px;
+      padding: 7px 12px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .func-input:focus { border-color: var(--primary); }
+    .btn-apply-func {
+      background: #0f172a;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn-apply-func:hover { background: #334155; }
+
+    .preset-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+    }
+    .preset-tag {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 3px 9px;
+      border-radius: 14px;
+      cursor: pointer;
+      color: #334155;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .preset-tag:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #eff6ff;
+    }
+    .func-error {
+      color: var(--danger);
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: none;
+    }
+
+    /* 畫布區塊 */
+    .canvas-container { position: relative; width: 100%; aspect-ratio: 4 / 3; min-height: 430px; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); user-select: none; }
+    canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+    canvas:active { cursor: grabbing; }
+
+    .zoom-toolbar {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10;
+    }
+    .zoom-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.95);
+      color: #0f172a;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .zoom-btn:hover { background: #f1f5f9; }
+
+    .zoom-hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      z-index: 10;
+    }
+
+    /* 引導步驟面板 */
+    .inquiry-panel { display: flex; flex-direction: column; gap: 16px; }
+    .step-indicator { display: flex; justify-content: space-between; align-items: center; background: #eff6ff; padding: 10px 14px; border-radius: 8px; border-left: 4px solid var(--primary); }
+    .step-title { font-weight: 700; color: #1e3a8a; font-size: 0.98rem; }
+    .step-counter { font-size: 0.82rem; font-weight: 600; color: var(--primary); background: #fff; padding: 2px 8px; border-radius: 12px; }
+
+    .step-content { display: flex; flex-direction: column; gap: 12px; font-size: 0.94rem; }
+    .btn-action { background: var(--primary); color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s; font-size: 0.92rem; }
+    .btn-action:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #f1f5f9; color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 0.9rem; }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+
+    /* 測驗選項 */
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .quiz-option { display: flex; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: 0.15s; background: #fff; font-size: 0.92rem; }
+    .quiz-option:hover { background: #f8fafc; border-color: #cbd5e1; }
+    .quiz-option.selected { border-color: var(--primary); background: #eff6ff; font-weight: 600; }
+    .quiz-feedback { padding: 12px; border-radius: 8px; font-size: 0.9rem; margin-top: 6px; display: none; line-height: 1.5; }
+    .quiz-feedback.correct { display: block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .quiz-feedback.wrong { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    .control-item { display: flex; flex-direction: column; gap: 6px; }
+    .control-item label { font-size: 0.88rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    input[type="range"] { accent-color: var(--primary); cursor: pointer; }
+
+    /* 正體清楚的坐標與數值標籤 */
+    .coord-tag {
+      font-style: normal;
+      font-weight: 700;
+      color: #0f172a;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      display: inline-block;
+    }
+
+    .stat-box { background: #f8fafc; border: 1px solid var(--border); padding: 12px; border-radius: 8px; font-size: 0.92rem; display: flex; flex-direction: column; gap: 8px; }
+    .definition-box { background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px; padding: 16px; margin-top: 4px; }
+
+    /* 純 CSS 數學極限與分數排版 */
+    .math-formula-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #dbeafe;
+      margin: 12px 0 4px 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+    .lim-group {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.1;
+      margin-right: 2px;
+    }
+    .lim-text { font-size: 1.05rem; }
+    .lim-sub { font-size: 0.72rem; font-weight: 600; color: #475569; }
+    .fraction {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      vertical-align: middle;
+    }
+    .frac-top {
+      border-bottom: 2px solid #1e3a8a;
+      padding: 0 6px 3px 6px;
+      line-height: 1.2;
+    }
+    .frac-bottom {
+      padding: 3px 6px 0 6px;
+      line-height: 1.2;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>曲線的局部特徵與切線斜率</h1>
+      <p class="subtitle">目前探索函數：<b id="currentFuncDisplay" style="color:var(--primary);">f(x) = x<sup>3</sup> − 2x</b></p>
+    </div>
+  </header>
+
+  <!-- 左側：自訂函數列 + 幾何圖形展示區 -->
+  <div class="card">
+    <div class="func-bar">
+      <div class="func-input-row">
+        <span class="func-label">自訂函數 f(x) ＝</span>
+        <input type="text" id="funcInput" class="func-input" value="x^3 - 2x" placeholder="例如：x^3 - 2x 或 x^2">
+        <button class="btn-apply-func" id="btnApplyFunc">套用函數</button>
+      </div>
+      <div class="preset-row">
+        <span style="color:var(--text-muted); font-weight:600;">課本範例快速切換：</span>
+        <span class="preset-tag" onclick="setPreset('x^3 - 2x', 1.0)">x³ − 2x (例題7)</span>
+        <span class="preset-tag" onclick="setPreset('x^2', 1.0)">x² (拋物線)</span>
+        <span class="preset-tag" onclick="setPreset('0.5x^3 + 1.5x^2', -1.0)">0.5x³ + 1.5x² (山谷圖)</span>
+        <span class="preset-tag" onclick="setPreset('x^3 - 3x - 2', 1.2)">x³ − 3x − 2 (例題10)</span>
+      </div>
+      <div id="funcError" class="func-error">⚠️ 函數格式無法辨識，請使用 x 的多項式（例如：x^3 - 2x、2x^2 + 1）</div>
+    </div>
+
+    <div class="canvas-container" id="canvasBox">
+      <canvas id="graphCanvas"></canvas>
+      <div class="zoom-hud" id="zoomHud">視野放大倍率：1.00 倍 (支援 0.1x ~ 150x 滾輪縮放／拖曳)</div>
+      <div class="zoom-toolbar">
+        <button class="zoom-btn" id="btnZoomIn" title="放大">+</button>
+        <button class="zoom-btn" id="btnZoomOut" title="縮小">−</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右側：引導式探究步驟面板 -->
+  <div class="inquiry-panel">
+    <div class="card">
+      <div class="step-indicator">
+        <span class="step-title" id="stepHeader">步驟 1：任選曲線上的點 A</span>
+        <span class="step-counter" id="stepCounter">1 / 6</span>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <!-- 步驟 1 -->
+        <div class="step-content" id="step1">
+          <p>請先在曲線上任取一個點 <span class="coord-tag">A</span>。<br>請拉動下方滑桿決定點 A 的位置（在左側畫布上可<b>滾動滾輪縮小看全景</b>，或按住滑鼠左鍵拖曳平移視野）：</p>
+          <div class="control-item">
+            <label>點 A 的坐標：<span id="labelAVal" class="coord-tag" style="color:var(--primary);">A(1.00, -1.00)</span></label>
+            <input type="range" id="sliderA" min="-4.0" max="4.0" step="0.05" value="1.0">
+          </div>
+          <button class="btn-action" onclick="goToStep(2)">選好點 A 了，下一步 ➔</button>
+        </div>
+
+        <!-- 步驟 2 -->
+        <div class="step-content" id="step2" style="display:none;">
+          <p>現在，把你選的點 <span class="coord-tag">A</span> 所在位置<b>放大、放大、再放大</b>！<br>你可以直接在左圖<b>滾動滑鼠滾輪</b>將圖形放大，或點擊下方按鈕：</p>
+          <button class="btn-action" id="btnDeepZoom">🔍 將點 A 放大、放大、再放大 (80 倍)</button>
+          <div class="quiz-feedback correct" id="zoomDiscovery" style="display:none; margin-top:8px;">
+            👀 <b>看看左邊放大後的藍色曲線，是不是看起來很像一條直線？</b><br>
+            當我們把曲線局部無限放大觀察時，原本彎曲的圖形在點 A 附近幾乎變成了一條筆直的線！我們先稱這一條直線叫做<b>「切線」</b>。
+          </div>
+          <div class="btn-group">
+            <button class="btn-secondary" onclick="goToStep(1)">上一步</button>
+            <button class="btn-action" id="btnGoStep3" style="display:none;" onclick="goToStep(3)">下一步 ➔</button>
+          </div>
+        </div>
+
+        <!-- 步驟 3 -->
+        <div class="step-content" id="step3" style="display:none;">
+          <p><b>🤔 動腦想一想：</b><br>現在我們把剛才局部觀察到的「切線」用綠色直線標示出來。如果我們想要求出這條切線的方程式，目前已經知道它有通過點 <span class="coord-tag">A</span> 了，還缺什麼？</p>
+          <div class="quiz-options">
+            <div class="quiz-option" onclick="checkQuiz1(this, false)">A. 多項式函數的最高次方</div>
+            <div class="quiz-option" onclick="checkQuiz1(this, true)">B. 斜率（或這條直線上的另一個點）</div>
+            <div class="quiz-option" onclick="checkQuiz1(this, false)">C. 坐標軸原點 (0, 0) 的位置</div>
+          </div>
+          <div class="quiz-feedback" id="quizFeedback1"></div>
+          <div class="btn-group">
+            <button class="btn-secondary" onclick="goToStep(2)">上一步</button>
+            <button class="btn-action" id="btnGoStep4" style="display:none;" onclick="goToStep(4)">下一步 ➔</button>
+          </div>
+        </div>
+
+        <!-- 步驟 4 -->
+        <div class="step-content" id="step4" style="display:none;">
+          <p>那麼<b>斜率（或另一個點）要怎麼求呢？</b>先想一下！</p>
+          <p>我們在點 <span class="coord-tag">A</span> 附近另外取幾個曲線上已知的點：<span style="color:#d97706;font-weight:bold;">P<sub>1</sub></span>、<span style="color:#0284c7;font-weight:bold;">P<sub>2</sub></span>、<span style="color:#7c3aed;font-weight:bold;">P<sub>3</sub></span>，並把他們跟點 A 連起來。<br>觀察看看，哪一個點跟 A 的連線，其斜率<b>最接近切線的斜率</b>？</p>
+          <div class="quiz-options">
+            <div class="quiz-option" onclick="checkQuiz2(this, false)">A. 距離較遠的 P<sub>1</sub> 與 A 的連線</div>
+            <div class="quiz-option" onclick="checkQuiz2(this, false)">B. 距離適中的 P<sub>2</sub> 與 A 的連線</div>
+            <div class="quiz-option" onclick="checkQuiz2(this, true)">C. 最靠近點 A 的 P<sub>3</sub> 與 A 的連線</div>
+          </div>
+          <div class="quiz-feedback" id="quizFeedback2"></div>
+          <div class="btn-group">
+            <button class="btn-secondary" onclick="goToStep(3)">上一步</button>
+            <button class="btn-action" id="btnGoStep5" style="display:none;" onclick="goToStep(5)">下一步：親自操作動點 P ➔</button>
+          </div>
+        </div>
+
+        <!-- 步驟 5 -->
+        <div class="step-content" id="step5" style="display:none;">
+          <p><b>🎯 動手操作驗證：</b><br>是不是這個動點 <span class="coord-tag" style="color:var(--danger)">P</span> 愈靠近點 <span class="coord-tag">A</span>，他們連線（割線）的斜率就越接近切線斜率？<br>請拉動下方滑桿移動點 P 試試看：</p>
+          <div class="control-item">
+            <label>動點 P 的坐標：<span id="labelPVal" class="coord-tag" style="color:var(--danger);">P(1.60, 0.90)</span></label>
+            <input type="range" id="sliderP" min="-4.5" max="4.5" step="0.01" value="1.60">
+          </div>
+          <div class="stat-box">
+            <div>割線 AP 的斜率：<span class="coord-tag" id="lblSecantM">3.160</span></div>
+            <div>切線的真實斜率：<span class="coord-tag" id="lblTangentM" style="color:var(--success);">1.000</span></div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-secondary" onclick="goToStep(4)">上一步</button>
+            <button class="btn-action" onclick="goToStep(6)">完成驗證，看最終結論 ➔</button>
+          </div>
+        </div>
+
+        <!-- 步驟 6 -->
+        <div class="step-content" id="step6" style="display:none;">
+          <div class="definition-box">
+            <h4 style="color:#1e3a8a; margin-bottom:8px;">🎓 活動總結：切線與導數的定義</h4>
+            <p>當曲線上動點 <b>P(x, f(x))</b> 無限靠近點 <b>A(a, f(a))</b> 時：</p>
+            <ul style="padding-left:20px; margin:8px 0;">
+              <li><b>這些割線的極限就是「切線」</b>。</li>
+              <li><b>割線斜率的極限就是「切線斜率」</b>，我們將這個極限值稱為函數 f(x) 在 x = a 處的<b>導數</b>，記作 <b>f'(a)</b>：</li>
+            </ul>
+            <div class="math-formula-box">
+              <span>切線斜率 f'(a) ＝</span>
+              <div class="lim-group">
+                <span class="lim-text">lim</span>
+                <span class="lim-sub">x → a</span>
+              </div>
+              <div class="fraction">
+                <span class="frac-top">f(x) − f(a)</span>
+                <span class="frac-bottom">x − a</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-secondary" style="width:100%; margin-top:8px;" onclick="goToStep(1)">🔄 重新選點或自訂新函數再體驗一次</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  const canvasBox = document.getElementById('canvasBox');
+  const zoomHud = document.getElementById('zoomHud');
+
+  const funcInput = document.getElementById('funcInput');
+  const btnApplyFunc = document.getElementById('btnApplyFunc');
+  const funcError = document.getElementById('funcError');
+  const currentFuncDisplay = document.getElementById('currentFuncDisplay');
+
+  const sliderA = document.getElementById('sliderA');
+  const sliderP = document.getElementById('sliderP');
+  const labelAVal = document.getElementById('labelAVal');
+  const labelPVal = document.getElementById('labelPVal');
+  const lblSecantM = document.getElementById('lblSecantM');
+  const lblTangentM = document.getElementById('lblTangentM');
+
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnDeepZoom = document.getElementById('btnDeepZoom');
+
+  // 動態自訂函數與數值微分
+  let customFn = x => Math.pow(x, 3) - 2 * x;
+  const f = x => customFn(x);
+  const df = x => {
+    const h = 1e-6;
+    return (f(x + h) - f(x - h)) / (2 * h);
+  };
+
+  function parseMathExpression(rawStr) {
+    let s = rawStr.trim().toLowerCase();
+    if (!s) throw new Error('Empty');
+    s = s.replace(/－/g, '-').replace(/＋/g, '+').replace(/＊/g, '*').replace(/／/g, '/').replace(/\s+/g, '');
+    s = s.replace(/\^/g, '**');
+    s = s.replace(/(\d)(x)/g, '$1*$2');
+    s = s.replace(/(\))(x|\d|\()/g, '$1*$2');
+    s = s.replace(/(x)(\()/g, '$1*$2');
+    s = s.replace(/(\d)(\()/g, '$1*$2');
+    s = s.replace(/sin\(/g, 'Math.sin(')
+         .replace(/cos\(/g, 'Math.cos(')
+         .replace(/tan\(/g, 'Math.tan(')
+         .replace(/sqrt\(/g, 'Math.sqrt(')
+         .replace(/abs\(/g, 'Math.abs(');
+
+    const compiled = new Function('x', `return (${s});`);
+    const testVal = compiled(1.0);
+    if (typeof testVal !== 'number' || isNaN(testVal)) {
+      throw new Error('Invalid math expression');
+    }
+    return compiled;
+  }
+
+  function formatPrettyHTML(rawStr) {
+    let clean = rawStr.trim()
+      .replace(/\*/g, '')
+      .replace(/-/g, ' − ')
+      .replace(/\+/g, ' + ')
+      .replace(/\^(\d+)/g, '<sup>$1</sup>');
+    return `f(x) = ${clean}`;
+  }
+
+  function applyCustomFunction() {
+    try {
+      const expr = funcInput.value;
+      const newFn = parseMathExpression(expr);
+      customFn = newFn;
+      funcError.style.display = 'none';
+      currentFuncDisplay.innerHTML = formatPrettyHTML(expr);
+      panOffsetX = 0;
+      panOffsetY = 0;
+      draw();
+    } catch (err) {
+      funcError.style.display = 'block';
+    }
+  }
+
+  function setPreset(expr, defaultA) {
+    funcInput.value = expr;
+    sliderA.value = defaultA;
+    const defaultP = defaultA + 0.6 <= 4.0 ? defaultA + 0.6 : defaultA - 0.6;
+    sliderP.value = defaultP.toFixed(2);
+    applyCustomFunction();
+  }
+
+  btnApplyFunc.addEventListener('click', applyCustomFunction);
+  funcInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') applyCustomFunction();
+  });
+
+  let currentStep = 1;
+  let zoomLevel = 1.0;
+  let panOffsetX = 0;
+  let panOffsetY = 0;
+
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+
+  function resizeCanvas() {
+    canvas.width = canvasBox.clientWidth * window.devicePixelRatio;
+    canvas.height = canvasBox.clientHeight * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // 切換探究步驟
+  function goToStep(step) {
+    currentStep = step;
+    for (let i = 1; i <= 6; i++) {
+      document.getElementById(`step${i}`).style.display = (i === step) ? 'flex' : 'none';
+    }
+    document.getElementById('stepCounter').innerText = `${step} / 6`;
+    const headers = [
+      '步驟 1：任選曲線上的點 A',
+      '步驟 2：放大、放大、再放大',
+      '步驟 3：求切線還缺什麼條件？',
+      '步驟 4：哪條連線的斜率最接近？',
+      '步驟 5：操作動點 P 逼近點 A',
+      '步驟 6：完成切線斜率與導數定義'
+    ];
+    document.getElementById('stepHeader').innerText = headers[step - 1];
+
+    if (step === 1) {
+      zoomLevel = 1.0; panOffsetX = 0; panOffsetY = 0;
+    } else if (step === 3 || step === 4) {
+      zoomLevel = 1.8; panOffsetX = 0; panOffsetY = 0;
+    } else if (step === 5) {
+      zoomLevel = 2.5; panOffsetX = 0; panOffsetY = 0;
+      const aVal = parseFloat(sliderA.value);
+      const defaultP = aVal + 0.6 <= 4.0 ? aVal + 0.6 : aVal - 0.6;
+      sliderP.value = defaultP.toFixed(2);
+    } else if (step === 6) {
+      zoomLevel = 1.5; panOffsetX = 0; panOffsetY = 0;
+    }
+    draw();
+  }
+
+  // 步驟 2 極致放大動畫
+  btnDeepZoom.addEventListener('click', () => {
+    let target = 80;
+    panOffsetX = 0;
+    panOffsetY = 0;
+    let stepZoom = () => {
+      if (zoomLevel < target) {
+        zoomLevel += (target - zoomLevel) * 0.15;
+        if (target - zoomLevel < 0.5) zoomLevel = target;
+        draw();
+        requestAnimationFrame(stepZoom);
+      } else {
+        document.getElementById('zoomDiscovery').style.display = 'block';
+        document.getElementById('btnGoStep3').style.display = 'block';
+      }
+    };
+    stepZoom();
+  });
+
+  function checkZoomUnlock() {
+    if (currentStep === 2 && zoomLevel >= 25) {
+      document.getElementById('zoomDiscovery').style.display = 'block';
+      document.getElementById('btnGoStep3').style.display = 'block';
+    }
+  }
+
+  // 測驗 1
+  function checkQuiz1(elem, isCorrect) {
+    document.querySelectorAll('#step3 .quiz-option').forEach(el => el.classList.remove('selected'));
+    elem.classList.add('selected');
+    const fb = document.getElementById('quizFeedback1');
+    if (isCorrect) {
+      fb.className = 'quiz-feedback correct';
+      fb.innerHTML = '🎯 <b>完全正確！</b> 已經知道直線通過點 A，只要再知道「斜率」（或是直線上另一個點），就能求出這條切線！';
+      document.getElementById('btnGoStep4').style.display = 'block';
+    } else {
+      fb.className = 'quiz-feedback wrong';
+      fb.innerHTML = '❌ 再想一下喔！在坐標平面上求一條直線，已經有一個點 A 了，還需要什麼才能決定這條直線的方向呢？';
+    }
+  }
+
+  // 測驗 2
+  function checkQuiz2(elem, isCorrect) {
+    document.querySelectorAll('#step4 .quiz-option').forEach(el => el.classList.remove('selected'));
+    elem.classList.add('selected');
+    const fb = document.getElementById('quizFeedback2');
+    if (isCorrect) {
+      fb.className = 'quiz-feedback correct';
+      fb.innerHTML = '🎯 <b>答對了！</b> 點 P<sub>3</sub> 最靠近點 A，它跟 A 連起來的直線斜率最接近綠色切線的斜率！';
+      document.getElementById('btnGoStep5').style.display = 'block';
+    } else {
+      fb.className = 'quiz-feedback wrong';
+      fb.innerHTML = '❌ 觀察一下左邊的圖形：距離點 A 越遠的點，連線是不是偏離綠色切線越多呢？';
+    }
+  }
+
+  // 縮放邏輯：0.1 倍 ~ 150 倍
+  function applyZoom(factor) {
+    zoomLevel = Math.min(150, Math.max(0.1, zoomLevel * factor));
+    checkZoomUnlock();
+    draw();
+  }
+  btnZoomIn.addEventListener('click', () => applyZoom(1.3));
+  btnZoomOut.addEventListener('click', () => applyZoom(0.75));
+
+  window.addEventListener('wheel', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      e.preventDefault();
+      applyZoom(e.deltaY < 0 ? 1.15 : 0.85);
+    }
+  }, { passive: false });
+
+  // 畫布單純負責拖曳平移
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStartX = e.clientX - panOffsetX;
+    dragStartY = e.clientY - panOffsetY;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    panOffsetX = e.clientX - dragStartX;
+    panOffsetY = e.clientY - dragStartY;
+    draw();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+  });
+
+  sliderA.addEventListener('input', draw);
+  sliderP.addEventListener('input', draw);
+
+  // 繪圖核心
+  function draw() {
+    const width = canvasBox.clientWidth;
+    const height = canvasBox.clientHeight;
+    ctx.clearRect(0, 0, width, height);
+
+    const axVal = parseFloat(sliderA.value);
+    const ayVal = f(axVal);
+    const pxVal = parseFloat(sliderP.value);
+    const pyVal = f(pxVal);
+
+    // 面板坐標文字
+    labelAVal.innerText = `A(${axVal.toFixed(2)}, ${ayVal.toFixed(2)})`;
+    labelPVal.innerText = `P(${pxVal.toFixed(2)}, ${pyVal.toFixed(2)})`;
+
+    const unitScale = (width / 5) * zoomLevel;
+    const originX = width / 2 - (axVal * unitScale) + panOffsetX;
+    const originY = height / 2 + (ayVal * unitScale) + panOffsetY;
+
+    const toScreenX = x => originX + x * unitScale;
+    const toScreenY = y => originY - y * unitScale;
+    const toMathX = sx => (sx - originX) / unitScale;
+
+    // 1. 動態調整坐標網格間距
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#e2e8f0';
+    let gridStep = 0.5;
+    if (zoomLevel > 35) gridStep = 0.02;
+    else if (zoomLevel > 10) gridStep = 0.1;
+    else if (zoomLevel > 4) gridStep = 0.2;
+    else if (zoomLevel >= 0.8) gridStep = 0.5;
+    else if (zoomLevel >= 0.35) gridStep = 1.0;
+    else if (zoomLevel >= 0.18) gridStep = 2.0;
+    else gridStep = 5.0;
+
+    const minX = toMathX(0);
+    const maxX = toMathX(width);
+    const startX = Math.floor(minX / gridStep) * gridStep;
+    for (let x = startX; x <= maxX; x += gridStep) {
+      ctx.beginPath(); ctx.moveTo(toScreenX(x), 0); ctx.lineTo(toScreenX(x), height); ctx.stroke();
+    }
+
+    // 2. 坐標軸
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
+    const axisY = toScreenY(0); const axisX = toScreenX(0);
+    if (axisY >= 0 && axisY <= height) { ctx.beginPath(); ctx.moveTo(0, axisY); ctx.lineTo(width, axisY); ctx.stroke(); }
+    if (axisX >= 0 && axisX <= width) { ctx.beginPath(); ctx.moveTo(axisX, 0); ctx.lineTo(axisX, height); ctx.stroke(); }
+
+    // 3. 繪製自訂函數曲線 f(x)
+    ctx.lineWidth = 3; ctx.strokeStyle = '#2563eb'; ctx.beginPath();
+    let isStarted = false;
+    for (let sx = 0; sx <= width; sx += 2) {
+      const mx = toMathX(sx);
+      const my = f(mx);
+      if (isNaN(my) || !isFinite(my)) {
+        isStarted = false;
+        continue;
+      }
+      const sy = toScreenY(my);
+      if (!isStarted) { ctx.moveTo(sx, sy); isStarted = true; } else { ctx.lineTo(sx, sy); }
+    }
+    ctx.stroke();
+
+    // 4. 理論切線 (改為步驟 3 以上才顯示，讓步驟 2 單純觀察藍色曲線放大變直)
+    const mTangent = df(axVal);
+    const bTangent = ayVal - mTangent * axVal;
+    if (currentStep >= 3) {
+      ctx.lineWidth = 2; ctx.strokeStyle = '#16a34a'; ctx.beginPath();
+      const xL = toMathX(0); const xR = toMathX(width);
+      ctx.moveTo(0, toScreenY(mTangent * xL + bTangent));
+      ctx.lineTo(width, toScreenY(mTangent * xR + bTangent));
+      ctx.stroke();
+    }
+
+    // 5. 步驟 4 的 3 個鄰近點 P1, P2, P3
+    if (currentStep === 4) {
+      const dir = axVal > 1.1 ? -1 : 1;
+      const testOffsets = [
+        { dx: 0.7 * dir, color: '#d97706', label: 'P1' },
+        { dx: 0.35 * dir, color: '#0284c7', label: 'P2' },
+        { dx: 0.12 * dir, color: '#7c3aed', label: 'P3' }
+      ];
+      testOffsets.forEach(pt => {
+        const testX = axVal + pt.dx;
+        const testY = f(testX);
+        const slope = (testY - ayVal) / pt.dx;
+        
+        ctx.lineWidth = 1.8; ctx.strokeStyle = pt.color; ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, toScreenY(ayVal + slope * (toMathX(0) - axVal)));
+        ctx.lineTo(width, toScreenY(ayVal + slope * (toMathX(width) - axVal)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const sx = toScreenX(testX); const sy = toScreenY(testY);
+        ctx.fillStyle = pt.color; ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillText(`${pt.label}(${testX.toFixed(2)}, ${testY.toFixed(2)})`, sx + 8, sy - 6);
+      });
+    }
+
+    // 6. 步驟 5, 6 的動態割線 AP
+    if (currentStep >= 5) {
+      const dx = pxVal - axVal;
+      const dy = pyVal - ayVal;
+      const mSec = Math.abs(dx) < 1e-4 ? mTangent : dy / dx;
+      lblSecantM.innerText = mSec.toFixed(3);
+      lblTangentM.innerText = mTangent.toFixed(3);
+
+      if (Math.abs(dx) >= 0.001) {
+        ctx.lineWidth = 2; ctx.strokeStyle = '#dc2626'; ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, toScreenY(ayVal + mSec * (toMathX(0) - axVal)));
+        ctx.lineTo(width, toScreenY(ayVal + mSec * (toMathX(width) - axVal)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      const ptPx = toScreenX(pxVal); const ptPy = toScreenY(pyVal);
+      ctx.fillStyle = '#dc2626'; ctx.beginPath(); ctx.arc(ptPx, ptPy, 5.5, 0, Math.PI * 2); ctx.fill();
+      ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(`P(${pxVal.toFixed(2)}, ${pyVal.toFixed(2)})`, ptPx + 8, ptPy + 16);
+    }
+
+    // 7. 繪製基準定點 A（正體字標示）
+    const ptAx = toScreenX(axVal); const ptAy = toScreenY(ayVal);
+    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(ptAx, ptAy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillText(`A(${axVal.toFixed(2)}, ${ayVal.toFixed(2)})`, ptAx + 8, ptAy - 10);
+
+    const zoomText = zoomLevel < 1 ? zoomLevel.toFixed(2) : zoomLevel.toFixed(1);
+    zoomHud.innerText = `視野放大倍率：${zoomText} 倍 (支援 0.1x ~ 150x 滾輪縮放／拖曳)`;
+  }
+
+  // 初始化繪圖
+  resizeCanvas();
+</script>
+</body>
+</html>
